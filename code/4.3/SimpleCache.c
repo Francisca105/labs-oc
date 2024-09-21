@@ -104,6 +104,8 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
     for (int i = 0; i < L2_SIZE / BLOCK_SIZE / 2; i++) {
       SimpleCacheL2.line[i].Valid[0] = 0;
       SimpleCacheL2.line[i].Valid[1] = 0;
+      SimpleCacheL2.line[i].Access_time[0] = 0;
+      SimpleCacheL2.line[i].Access_time[1] = 0;
     }
     SimpleCacheL2.init = 1;
   }
@@ -133,23 +135,6 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
     set_element = 1;
   }
 
-  if (set_element != -1) {
-    accessDRAM(MemAddress, TempBlock, MODE_READ); // get new block from DRAM
-
-    if (Line->Access_time[0] < Line->Access_time[1]) {
-      set_element = 0;
-    } else {
-      set_element = 1;
-    }
-    if ((Line->Valid[set_element]) && (Line->Dirty[set_element])) { // line has dirty block
-      MemAddress = Line->Tag[set_element] << offset_bits;        // get address of the block in memory
-      accessDRAM(MemAddress, &(L2Cache[index*BLOCK_SIZE + offset]), MODE_WRITE); // then write back old block
-    }
-
-    memcpy(&(L2Cache[index*BLOCK_SIZE + set_element*BLOCK_SIZE + offset]), TempBlock,
-           BLOCK_SIZE); // copy new block to L2 line
-  }
-
   if (set_element == -1) {         // if block not present - miss
     accessDRAM(MemAddress, TempBlock, MODE_READ); // get new block from DRAM
 
@@ -169,7 +154,6 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
     Line->Valid[set_element] = 1;
     Line->Tag[set_element] = Tag;
     Line->Dirty[set_element] = 0;
-    Line->Access_time[set_element] = time;
   }
 
   if (mode == MODE_READ) {    // read data from cache line
