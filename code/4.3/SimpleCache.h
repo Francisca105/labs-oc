@@ -11,8 +11,6 @@ void resetTime();
 
 uint32_t getTime();
 
-uint32_t get_bits(uint32_t);
-
 /****************  RAM memory (byte addressable) ***************/
 void accessDRAM(uint32_t, uint8_t *, uint32_t);
 
@@ -37,12 +35,12 @@ typedef struct CacheLineL2 {
 
 typedef struct CacheL1 {
   uint32_t init;
-  CacheLineL1 line[L1_SIZE/BLOCK_SIZE];
+  CacheLineL1 lines[L1_SIZE/BLOCK_SIZE];
 } CacheL1;
 
 typedef struct CacheL2 {
   uint32_t init;
-  CacheLineL2 line[L2_SIZE/BLOCK_SIZE/2];
+  CacheLineL2 lines[L2_SIZE/BLOCK_SIZE/2];  // 2-way associative cache
 } CacheL2;
 
 /*********************** Interfaces *************************/
@@ -50,5 +48,9 @@ typedef struct CacheL2 {
 void read(uint32_t, uint8_t *);
 
 void write(uint32_t, uint8_t *);
+
+/*********************** Helper Functions *************************/
+
+uint32_t get_bits(uint32_t);
 
 #endif

@@ -101,7 +101,7 @@ void accessL1(uint32_t address, uint8_t *data, uint32_t mode) {
 /*********************** L2 cache *************************/
 void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
 
-  uint32_t index, Tag, offset, MemAddress;
+  uint32_t index, Tag, MemAddress;
   uint8_t TempBlock[BLOCK_SIZE];
 
   /* init cache */
@@ -118,11 +118,10 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
   uint32_t offset_mask = (1ULL << offset_bits) - 1;  
   uint32_t index_mask = (1ULL << index_bits) - 1;
   
-  offset = address & offset_mask;  
   index = (address >> offset_bits) & index_mask;
   Tag = address >> (offset_bits + index_bits); 
 
-  MemAddress = address;
+  MemAddress = address; // address of the block in memory (first position of the block)
 
   CacheLine *Line = &SimpleCacheL2.lines[index];
 
@@ -145,13 +144,11 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
   } // if miss, then replaced with the correct block
 
   if (mode == MODE_READ) {    // read data from cache line
-    // offset is always 0 for L2 cache
     memcpy(data, &(L2Cache[index * BLOCK_SIZE]), BLOCK_SIZE);
     time += L2_READ_TIME;
   }
 
   if (mode == MODE_WRITE) { // write data from cache line
-    // offset is always 0 for L2 cache
     memcpy(&(L2Cache[index * BLOCK_SIZE]), data, BLOCK_SIZE);
     time += L2_WRITE_TIME;
     Line->Dirty = 1;

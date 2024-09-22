@@ -15,7 +15,7 @@ uint32_t getTime() { return time; }
 /****************  RAM memory (byte addressable) ***************/
 void accessDRAM(uint32_t address, uint8_t *data, uint32_t mode) {
 
-  if (address >= DRAM_SIZE - WORD_SIZE + 1)
+  if (address >= DRAM_SIZE - BLOCK_SIZE + 1)
     exit(-1);
 
   if (mode == MODE_READ) {
@@ -44,13 +44,14 @@ void accessL1(uint32_t address, uint8_t *data, uint32_t mode) {
   /* init cache */
   if (SimpleCacheL1.init == 0) {
     for (int i = 0; i < L1_SIZE / BLOCK_SIZE; i++) {
-      SimpleCacheL1.line[i].Valid = 0;
+      SimpleCacheL1.lines[i].Valid = 0;
     }
     SimpleCacheL1.init = 1;
   }
 
   uint32_t offset_bits = get_bits(BLOCK_SIZE);  // log2(BLOCK_SIZE) to calculate the number of bits for offset
   uint32_t index_bits = get_bits(L1_SIZE / BLOCK_SIZE);  // log2(L1_SIZE / BLOCK_SIZE) to calculate the number of bits for index
+  uint32_t word_bits = get_bits(WORD_SIZE);  // log2(WORD_SIZE) to calculate the number of bits for each byte in a word
   
   uint32_t offset_mask = (1ULL << offset_bits) - 1;  
   uint32_t index_mask = (1ULL << index_bits) - 1;
@@ -62,7 +63,7 @@ void accessL1(uint32_t address, uint8_t *data, uint32_t mode) {
   MemAddress = address >> offset_bits; 
   MemAddress = MemAddress << offset_bits; // address of the block in memory (first position of the block)
 
-  CacheLineL1 *Line = &SimpleCacheL1.line[index];
+  CacheLineL1 *Line = &SimpleCacheL1.lines[index];
 
   /* access Cache*/
 
@@ -70,16 +71,20 @@ void accessL1(uint32_t address, uint8_t *data, uint32_t mode) {
     accessL2(MemAddress, TempBlock, MODE_READ);   // get new BLOCK from L2 cache
 
     if ((Line->Valid) && (Line->Dirty)) { // line has dirty block
-      MemAddress = Line->Tag << offset_bits;        // get address of the block in memory
-      accessDRAM(MemAddress, &(L1Cache[index*BLOCK_SIZE + offset]), MODE_WRITE); // then write back old block
+      MemAddress = (Line->Tag << index_bits) | index;
+      MemAddress = MemAddress << offset_bits; // get address of the block in memory
+      accessL2(MemAddress, &(L1Cache[index*BLOCK_SIZE]), MODE_WRITE); // then write back old block
     }
 
-    memcpy(&(L1Cache[MemAddress]), TempBlock,
+    memcpy(&(L1Cache[index * BLOCK_SIZE]), TempBlock,
            BLOCK_SIZE); // copy new block to cache line
     Line->Valid = 1;
     Line->Tag = Tag;
     Line->Dirty = 0;
   } // if miss, then replaced with the correct block
+
+  offset = offset >> word_bits;
+  offset = offset << word_bits; // cache is word addressable
 
   if (mode == MODE_READ) {    // read data from cache line
     memcpy(data, &(L1Cache[index*BLOCK_SIZE + offset]), WORD_SIZE);
@@ -102,16 +107,16 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
   /* init cache */
   if (SimpleCacheL2.init == 0) {
     for (int i = 0; i < L2_SIZE / BLOCK_SIZE / 2; i++) {
-      SimpleCacheL2.line[i].Valid[0] = 0;
-      SimpleCacheL2.line[i].Valid[1] = 0;
-      SimpleCacheL2.line[i].Access_time[0] = 0;
-      SimpleCacheL2.line[i].Access_time[1] = 0;
+      SimpleCacheL2.lines[i].Valid[0] = 0;
+      SimpleCacheL2.lines[i].Valid[1] = 0;
+      SimpleCacheL2.lines[i].Access_time[0] = 0;
+      SimpleCacheL2.lines[i].Access_time[1] = 0;
     }
     SimpleCacheL2.init = 1;
   }
 
   uint32_t offset_bits = get_bits(BLOCK_SIZE);  // log2(BLOCK_SIZE) to calculate the number of bits for offset
-  uint32_t index_bits = get_bits(L2_SIZE / BLOCK_SIZE / 2);  // log2(L2_SIZE / BLOCK_SIZE) to calculate the number of bits for index
+  uint32_t index_bits = get_bits(L2_SIZE / BLOCK_SIZE / 2);  // log2(L2_SIZE / BLOCK_SIZE / 2) to calculate the number of bits for index
   
   uint32_t offset_mask = (1ULL << offset_bits) - 1;  
   uint32_t index_mask = (1ULL << index_bits) - 1;
@@ -120,10 +125,9 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
   index = (address >> offset_bits) & index_mask;
   Tag = address >> (offset_bits + index_bits); 
 
-  MemAddress = address >> offset_bits; 
-  MemAddress = MemAddress << offset_bits; // address of the block in memory (first position of the block)
+  MemAddress = address; 
 
-  CacheLineL2 *Line = &SimpleCacheL2.line[index];
+  CacheLineL2 *Line = &SimpleCacheL2.lines[index];
 
   /* access Cache*/
 
@@ -145,27 +149,27 @@ void accessL2(uint32_t address, uint8_t *data, uint32_t mode) {
     }
 
     if ((Line->Valid[set_element]) && (Line->Dirty[set_element])) { // line has dirty block
-      MemAddress = Line->Tag[set_element] << offset_bits;        // get address of the block in memory
-      accessDRAM(MemAddress, &(L2Cache[index*BLOCK_SIZE + set_element*BLOCK_SIZE + offset]), MODE_WRITE); // then write back old block
+      MemAddress = (Line->Tag[set_element] << index_bits) | index;
+      MemAddress = MemAddress << offset_bits;        // get address of the block in memory
+      accessDRAM(MemAddress, &(L2Cache[index*BLOCK_SIZE*2 + set_element*BLOCK_SIZE]),
+                 MODE_WRITE); // then write back old block
     }
 
-    memcpy(&(L2Cache[index*BLOCK_SIZE + set_element*BLOCK_SIZE + offset]), TempBlock,
+    memcpy(&(L2Cache[index*BLOCK_SIZE*2 + set_element*BLOCK_SIZE]), TempBlock,
            BLOCK_SIZE); // copy new block to L2 line
     Line->Valid[set_element] = 1;
     Line->Tag[set_element] = Tag;
     Line->Dirty[set_element] = 0;
-  }
+  } // if miss, then replaced with the correct block
 
   if (mode == MODE_READ) {    // read data from cache line
-    // offset is always 0 for L2 cache
-    memcpy(data, &(L2Cache[index*BLOCK_SIZE + set_element*BLOCK_SIZE + offset]), BLOCK_SIZE);
+    memcpy(data, &(L2Cache[index*BLOCK_SIZE*2 + set_element*BLOCK_SIZE]), BLOCK_SIZE);
     time += L2_READ_TIME;
     Line->Access_time[set_element] = time;
   }
 
   if (mode == MODE_WRITE) { // write data from cache line
-    // offset is always 0 for L2 cache
-    memcpy(&(L2Cache[index*BLOCK_SIZE + set_element*BLOCK_SIZE + offset]), data, BLOCK_SIZE);
+    memcpy(&(L2Cache[index*BLOCK_SIZE*2 + set_element*BLOCK_SIZE]), data, BLOCK_SIZE);
     time += L2_WRITE_TIME;
     Line->Dirty[set_element] = 1;
     Line->Access_time[set_element] = time;
