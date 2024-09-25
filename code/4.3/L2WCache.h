@@ -1,11 +1,11 @@
-#ifndef SIMPLECACHE_H
-#define SIMPLECACHE_H
+#ifndef L2WCACHE_H
+#define L2WCACHE_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "Cache.h"
+#include "../Cache.h"
 
 void resetTime();
 

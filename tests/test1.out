@@ -1,0 +1,4 @@
+Write; Address 0; Value 0; Time 101
+Read; Address 0; Value 0; Time 102
+Write; Address 65535; Value 65535; Time 203
+Read; Address 65535; Value 65535; Time 204
