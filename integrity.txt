@@ -1,0 +1,17 @@
+in order to know if the program is still correct, the C array should have the following elements:
+C[1] =  c
+C[2] = 2e
+C[3] = 66
+C[4] = b4
+C[5] = 118
+C[6] = 192
+C[7] = 222
+C[8] = 2c8
+C[9] = 384
+C[10] = 3f2
+C[11] = 4d0
+C[12] = 5c4
+C[13] = 6ce
+C[14] = 7ee
+C[15] = 924
+C[16] = a70
